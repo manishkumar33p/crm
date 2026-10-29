@@ -1,0 +1,89 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function userProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function isSuperAdmin() {
+      return signedIn() && userProfile().role == 'superadmin';
+    }
+    function isCompanyMember(companyId) {
+      return signedIn()
+        && userProfile().companyId == companyId
+        && userProfile().role in ['owner', 'employee'];
+    }
+    function isCompanyOwner(companyId) {
+      return signedIn()
+        && userProfile().companyId == companyId
+        && userProfile().role == 'owner';
+    }
+    function isEmployee(companyId) {
+      return signedIn()
+        && userProfile().companyId == companyId
+        && userProfile().role == 'employee';
+    }
+    function ownsLead() {
+      return resource.data.assigned == userProfile().name
+        || resource.data.createdBy == request.auth.uid;
+    }
+    function newLeadBelongsToEmployee() {
+      return request.resource.data.assigned == userProfile().name
+        || request.resource.data.createdBy == request.auth.uid;
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isSuperAdmin());
+      // Role profiles must be provisioned by a trusted admin, not self-assigned in the app.
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    match /companies/{companyId} {
+      allow read: if isSuperAdmin()
+        || (signedIn() && userProfile().companyId == companyId);
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    match /companySettings/{companyId} {
+      allow read: if isSuperAdmin()
+        || isCompanyOwner(companyId)
+        || (isEmployee(companyId) && (
+          collectionName == 'properties'
+          || (collectionName == 'attendance' && resource.data.employeeId == request.auth.uid)
+          || (collectionName == 'leads' && (resource.data.assigned == userProfile().name || resource.data.createdBy == request.auth.uid))
+        ));
+      allow create, update, delete: if isSuperAdmin() || isCompanyOwner(companyId);
+    }
+
+    match /companyData/{companyId}/{collectionName}/{recordId} {
+      allow read: if isSuperAdmin()
+        || isCompanyOwner(companyId)
+        || (isEmployee(companyId) && (
+          collectionName == 'properties'
+          || (collectionName == 'attendance' && resource.data.employeeId == request.auth.uid)
+          || (collectionName == 'leads' && (resource.data.assigned == userProfile().name || resource.data.createdBy == request.auth.uid))
+        ));
+      allow create, update, delete: if isSuperAdmin() || isCompanyOwner(companyId);
+
+      // Employees can only add/update their own attendance and work on leads assigned to them.
+      allow create: if isEmployee(companyId) && (
+        (collectionName == 'attendance' && request.resource.data.employeeId == request.auth.uid)
+        || (collectionName == 'leads' && newLeadBelongsToEmployee())
+      );
+      allow update: if isEmployee(companyId) && (
+        (collectionName == 'attendance'
+          && resource.data.employeeId == request.auth.uid
+          && request.resource.data.employeeId == request.auth.uid)
+        || (collectionName == 'leads' && ownsLead() && newLeadBelongsToEmployee())
+      );
+      allow delete: if isEmployee(companyId) && (
+        (collectionName == 'attendance' && resource.data.employeeId == request.auth.uid)
+        || (collectionName == 'leads' && ownsLead())
+      );
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

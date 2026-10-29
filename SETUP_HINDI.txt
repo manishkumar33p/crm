@@ -1,0 +1,83 @@
+NISS TECHNOLOGY × RIHAOS REALTOR — CRM SETUP (HINDI)
+
+IMPORTANT
+- Yeh project aapke uploaded original CRM ke 15 modules ko preserve karke Firebase Auth + Firestore se connect karne ke liye banaya gaya hai.
+- Demo credentials/localStorage login hata diya gaya hai. Ab asli Firebase Authentication account se login hoga.
+- Existing Firebase project config `src/firebase.js` mein `rehouse-19a6c` par set hai. Agar aapka target Firebase project alag hai, to isi file mein apne Firebase Web App ki config paste karein.
+- Is ZIP mein `node_modules` nahi hai. Pehli baar install karne ke liye internet chahiye.
+
+1) PROJECT START KAREIN
+1. ZIP ko ek naye folder mein extract karein.
+2. Folder ke andar `package.json` hona chahiye.
+3. Terminal / CMD usi folder mein open karein.
+4. Run karein:
+   npm install
+   npm start
+
+2) FIREBASE AUTH ON KAREIN
+1. Firebase Console: https://console.firebase.google.com/
+2. Project `rehouse-19a6c` open karein (ya apna target project).
+3. Build > Authentication > Get started.
+4. Sign-in method mein Email/Password ko Enable karein.
+5. Users tab se Super Admin, Company Owner aur Employee ke liye alag-alag email/password accounts banayein.
+
+3) FIRESTORE DATABASE + RULES
+1. Build > Firestore Database mein database create/open karein.
+2. Firestore Rules page par project ke `firestore.rules` ka content paste karke Publish karein.
+3. Rules public access nahi deti. `allow read, write: if true` use na karein.
+
+4) ROLE PROFILE BANANA — HAR AUTH ACCOUNT KE LIYE
+Authentication > Users se user ka UID copy karein.
+Firestore Data mein `users` collection banayein. Document ID bilkul us user ka UID ho.
+Super Admin document fields:
+  name: "NISS Technology Admin" (string)
+  email: "admin@yourdomain.com" (string)
+  role: "superadmin" (string)
+
+Company Owner document fields:
+  name: "Rihaos Realtor Owner" (string)
+  email: "owner@yourdomain.com" (string)
+  role: "owner" (string)
+  companyId: "COMPANY_DOCUMENT_ID" (string)
+  companyName: "Rihaos Realtor" (string)
+
+Employee document fields:
+  name: "Employee Name" (string)
+  email: "employee@yourdomain.com" (string)
+  role: "employee" (string)
+  companyId: "SAME_COMPANY_DOCUMENT_ID" (string)
+  companyName: "Rihaos Realtor" (string)
+
+ROLE RULES
+- Login screen par wahi tab choose karein jo `users/{UID}.role` mein hai.
+- Role spelling exactly: `superadmin`, `owner`, `employee`.
+- Owner aur Employee ka `companyId` exact same company document ID hona chahiye.
+- Password kabhi Firestore users document mein store na karein.
+- Users/role profiles trusted admin se provision karein; client UI se role self-change karne ki permission nahi hai.
+
+5) COMPANY BANAYEIN
+1. Super Admin tab se login karein.
+2. Companies > Add company kholein.
+3. Company name mein `Rihaos Realtor` likhein, plan/seats select karke save karein.
+4. Companies collection mein jo naya document ID bana hai, usi exact ID ko Owner aur Employee ke users profile mein `companyId` rakhein.
+5. Agar Owner profile pehle se banaya tha, company ID ko sahi kar dein.
+
+6) TEENO ROLE KI ALAG ACCESS
+- Super Admin: platform overview, client companies aur plan display; company add Firestore mein save hota hai.
+- Company Owner: apni company ka CRM — dashboard, leads, follow-ups, customers, properties, projects, site visits, bookings, payments, employees, attendance, payroll, reports aur settings.
+- Employee: daily workspace; limited navigation (leads, follow-ups, customers, properties, projects, site visits, bookings, attendance). Security rules employee writes ko leads/attendance tak restrict karti hain.
+- Super Admin ke “Open demo” button se company workspace preview kiya ja sakta hai; real Owner login alag Auth account se hoga.
+
+7) DATA KAHAN SAVE HOTA HAI?
+- Companies: `companies/{companyId}`
+- User role profiles: `users/{uid}`
+- Company module records: `companyData/{companyId}/{module}/{recordId}`
+- Company settings: `companySettings/{companyId}`
+- Core CRM records (Leads, Employees, Attendance, Payroll, Properties) Firestore snapshots se live read hote hain aur updates Firestore mein likhe jaate hain. Customers/Projects/Site Visits/Bookings/Payments original design ke mutabik derived views hain; inke alag independent CRUD workflows original source mein maujood nahi the, isliye unko alag independent data-entry system kehna sahi nahi hoga.
+
+8) IMPORTANT SECURITY / PRODUCTION NOTES
+- Browser app Firebase Auth/Firestore se connect hoti hai; yeh secure server-side employee invitation system ya subscription payment gateway nahi hai.
+- Employee ka Firebase Auth account automatic create nahi hota jab roster mein “Add employee” dabate hain. Firebase Auth user aur `users/{uid}` profile trusted admin se alag banani hoti hai. Production mein invitation ke liye Cloud Function/Admin SDK use karein.
+- Firebase config web app configuration hai; security Firestore Rules se enforce hoti hai.
+- Deploy karne se pehle `npm run build`, role tests, cross-company isolation tests, backups aur production security review zaroor karein.
+- Is delivery mein source/static validation ki ja sakti hai; live Firebase account ke credentials ke bina end-to-end login/database test guarantee nahi kiya ja sakta.
